@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Xingmu AI motion-comic Flutter entry module.",
+  "main": "",
+  "author": "w6521939-ops",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

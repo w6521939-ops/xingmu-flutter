@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "AI 漫剧视频生成手机客户端"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "星幕 AI 漫剧主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "星幕 AI 漫剧"
+    }
+  ]
+}

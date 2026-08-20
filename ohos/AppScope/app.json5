@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "com.w6521939.xingmu_ai_video_studio",
+    "vendor": "w6521939-ops",
+    "versionCode": 1,
+    "versionName": "0.1.0",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

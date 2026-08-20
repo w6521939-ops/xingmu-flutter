@@ -1,0 +1,1558 @@
+openapi: 3.1.0
+info:
+  title: 星幕 AI 漫剧可信后端 API
+  version: 0.1.0
+  description: |
+    Flutter Android/OpenHarmony 客户端与可信后端之间的唯一网络契约。
+    模型供应商密钥只能保存在后端；客户端只持有短期用户访问令牌。
+    所有创建/动作类 POST 请求必须携带 `Idempotency-Key`，所有覆盖或状态迁移请求必须携带最新 `If-Match`。
+servers:
+  - url: https://api.xingmu.example/v1
+    description: 生产占位地址；发布前替换为实际 HTTPS 域名
+security:
+  - bearerAuth: []
+tags:
+  - name: Projects
+  - name: ScriptJobs
+  - name: Assets
+  - name: GenerationPlans
+  - name: GenerationRuns
+  - name: GenerationJobs
+  - name: Budget
+  - name: Exports
+
+paths:
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: 分页列出当前用户的项目
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 项目列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPage'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: 创建漫剧项目
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: 已创建
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      operationId: getProject
+      summary: 获取项目
+      responses:
+        '200':
+          description: 项目详情
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags: [Projects]
+      operationId: updateProject
+      summary: 更新项目元数据
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: 已更新
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [Projects]
+      operationId: deleteProject
+      summary: 软删除项目
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: 已进入回收状态
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/script-jobs:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [ScriptJobs]
+      operationId: createScriptJob
+      summary: 根据主题或原始文本异步生成结构化剧本
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScriptJobRequest'
+      responses:
+        '202':
+          description: 已进入任务队列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptJob'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /script-jobs/{scriptJobId}:
+    parameters:
+      - $ref: '#/components/parameters/ScriptJobId'
+    get:
+      tags: [ScriptJobs]
+      operationId: getScriptJob
+      summary: 查询剧本任务及其结构化结果
+      responses:
+        '200':
+          description: 剧本任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptJob'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/assets:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Assets]
+      operationId: listAssets
+      summary: 列出角色、场景、道具、分镜、视频和音频资产
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetKind'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 资产列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetPage'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/assets/upload-intents:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Assets]
+      operationId: createAssetUploadIntent
+      summary: 创建限时、限类型、限大小的直传凭证
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadIntentRequest'
+      responses:
+        '201':
+          description: 已创建上传凭证
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /assets/{assetId}/complete:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    post:
+      tags: [Assets]
+      operationId: completeAssetUpload
+      summary: 确认上传并触发后端类型、大小与内容校验
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteUploadRequest'
+      responses:
+        '202':
+          description: 正在校验
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /assets/{assetId}:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      tags: [Assets]
+      operationId: getAsset
+      summary: 获取资产元数据和限时预览地址
+      responses:
+        '200':
+          description: 资产
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [Assets]
+      operationId: deleteAsset
+      summary: 删除未被运行锁定的资产
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: 已删除
+        '409':
+          description: 资产正在被生成任务使用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/generation-plans:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [GenerationPlans]
+      operationId: createGenerationPlan
+      summary: 固化剧本版本、角色/场景参考和镜头生成计划
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGenerationPlanRequest'
+      responses:
+        '201':
+          description: 计划已创建
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationPlan'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-plans/{planId}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [GenerationPlans]
+      operationId: getGenerationPlan
+      summary: 获取生成计划
+      responses:
+        '200':
+          description: 生成计划
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationPlan'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags: [GenerationPlans]
+      operationId: updateGenerationPlan
+      summary: 在运行前调整镜头或供应商策略
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateGenerationPlanRequest'
+      responses:
+        '200':
+          description: 计划已更新
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationPlan'
+        '409':
+          description: 计划已运行，不能原地修改
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-plans/{planId}/runs:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [GenerationRuns]
+      operationId: startGenerationRun
+      summary: 启动生成计划
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRunRequest'
+      responses:
+        '202':
+          description: 运行已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationRun'
+        '402':
+          description: 预算不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-runs/{runId}:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [GenerationRuns]
+      operationId: getGenerationRun
+      summary: 获取整次生成的聚合状态
+      responses:
+        '200':
+          description: 生成运行
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationRun'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-runs/{runId}/actions:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    post:
+      tags: [GenerationRuns]
+      operationId: changeGenerationRunState
+      summary: 暂停、恢复或取消生成
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunActionRequest'
+      responses:
+        '202':
+          description: 状态迁移已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationRun'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-runs/{runId}/jobs:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [GenerationJobs]
+      operationId: listGenerationJobs
+      summary: 列出角色图、场景图、分镜、视频、配音和导出子任务
+      parameters:
+        - name: stage
+          in: query
+          schema:
+            $ref: '#/components/schemas/GenerationStage'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 子任务列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationJobPage'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-runs/{runId}/events:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+      - name: Last-Event-ID
+        in: header
+        required: false
+        description: 断线重连时传入客户端最后确认的事件 ID
+        schema:
+          type: string
+    get:
+      tags: [GenerationRuns]
+      operationId: streamGenerationRunEvents
+      summary: 订阅运行进度 SSE
+      description: |
+        服务端至少发送 `run.updated`、`job.updated`、`budget.updated`、`export.updated` 和 `heartbeat`。
+        访问令牌不得放入查询字符串；客户端应使用支持 Authorization 请求头的 SSE 实现。
+      responses:
+        '200':
+          description: Server-Sent Events 流
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: 固定为 no-cache
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |-
+                id: evt_01JABC
+                event: job.updated
+                data: {"runId":"run_01JABC","jobId":"job_01JABC","status":"running","progress":42}
+
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-jobs/{jobId}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [GenerationJobs]
+      operationId: getGenerationJob
+      summary: 获取单个生成子任务
+      responses:
+        '200':
+          description: 生成子任务
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationJob'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /generation-jobs/{jobId}/actions:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      tags: [GenerationJobs]
+      operationId: changeGenerationJobState
+      summary: 重试或取消单个子任务
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobActionRequest'
+      responses:
+        '202':
+          description: 动作已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationJob'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/budget:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Budget]
+      operationId: getProjectBudget
+      summary: 获取项目预算、已预留和已消耗金额
+      responses:
+        '200':
+          description: 项目预算
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags: [Budget]
+      operationId: setProjectBudget
+      summary: 设置项目硬预算上限
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetBudgetRequest'
+      responses:
+        '200':
+          description: 预算已更新
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/budget/estimate:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Budget]
+      operationId: estimateGenerationCost
+      summary: 按计划和供应商策略预估费用
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId:
+                  type: string
+      responses:
+        '200':
+          description: 费用预估
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetEstimate'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /projects/{projectId}/exports:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Exports]
+      operationId: listExports
+      summary: 列出项目成片导出
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 导出列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportPage'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [Exports]
+      operationId: createExport
+      summary: 将已完成镜头、配音、字幕和音乐合成为 MP4
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExportRequest'
+      responses:
+        '202':
+          description: 导出已进入队列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /exports/{exportId}:
+    parameters:
+      - $ref: '#/components/parameters/ExportId'
+    get:
+      tags: [Exports]
+      operationId: getExport
+      summary: 查询成片导出状态
+      responses:
+        '200':
+          description: 导出任务
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /exports/{exportId}/actions:
+    parameters:
+      - $ref: '#/components/parameters/ExportId'
+    post:
+      tags: [Exports]
+      operationId: changeExportState
+      summary: 取消或重试导出
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportActionRequest'
+      responses:
+        '202':
+          description: 动作已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /exports/{exportId}/download:
+    parameters:
+      - $ref: '#/components/parameters/ExportId'
+    get:
+      tags: [Exports]
+      operationId: getExportDownload
+      summary: 获取短期签名下载地址
+      responses:
+        '200':
+          description: 限时下载信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadTicket'
+        default:
+          $ref: '#/components/responses/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    ScriptJobId:
+      name: scriptJobId
+      in: path
+      required: true
+      schema:
+        type: string
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 每次用户意图生成一个 UUID；相同用户、路由和请求体可安全重放 24 小时
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: 使用最近一次 GET/创建响应返回的强 ETag，避免并发覆盖
+      schema:
+        type: string
+
+  headers:
+    ETag:
+      description: 当前资源修订版本，例如 `"rev-7"`
+      schema:
+        type: string
+    RequestId:
+      description: 用于排障的请求 ID，不包含用户或密钥信息
+      schema:
+        type: string
+
+  responses:
+    Error:
+      description: 请求失败
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PreconditionFailed:
+      description: ETag 已过期；客户端应重新读取资源并让用户确认冲突
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    Timestamp:
+      type: string
+      format: date-time
+    JobStatus:
+      type: string
+      enum: [queued, running, paused, succeeded, failed, canceled]
+    AssetKind:
+      type: string
+      enum: [character, scene, prop, storyboard, video, voice, music, subtitle, export]
+    GenerationStage:
+      type: string
+      enum:
+        - script
+        - character_images
+        - scene_images
+        - prop_images
+        - storyboard_images
+        - shot_videos
+        - voice_assignment
+        - voice_lines
+        - episode_export
+    ProviderStrategy:
+      type: string
+      enum: [bailian, wan22, automatic]
+
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 500
+        aspectRatio:
+          type: string
+          enum: ['9:16', '16:9', '1:1']
+          default: '9:16'
+    UpdateProjectRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 500
+        aspectRatio:
+          type: string
+          enum: ['9:16', '16:9', '1:1']
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - aspectRatio
+        - latestScriptJobId
+        - activeRunId
+        - latestExportId
+        - revision
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        aspectRatio:
+          type: string
+        coverAssetId:
+          type: [string, 'null']
+          minLength: 1
+        latestScriptJobId:
+          type: [string, 'null']
+          minLength: 1
+        activeRunId:
+          type: [string, 'null']
+          minLength: 1
+          description: 最近一次尚需客户端恢复或展示的生成运行；没有运行时为 null。
+        latestExportId:
+          type: [string, 'null']
+          minLength: 1
+          description: 最近一次成片导出；没有导出时为 null。
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    ProjectPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        nextCursor:
+          type: [string, 'null']
+          minLength: 1
+
+    CreateScriptJobRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceType, sourceText]
+      properties:
+        sourceType:
+          type: string
+          enum: [theme, outline, script]
+        sourceText:
+          type: string
+          minLength: 1
+          maxLength: 30000
+        episodeCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 1
+        styleHint:
+          type: string
+          maxLength: 1000
+    ScriptJob:
+      type: object
+      required: [id, projectId, status, progress, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        projectId:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/ScriptDraft'
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/JobError'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    ScriptDraft:
+      type: object
+      required: [title, logline, styleBible, characters, scenes, episodes]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        logline:
+          type: string
+          minLength: 1
+        styleBible:
+          type: string
+          minLength: 1
+        characters:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalEntity'
+        props:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalEntity'
+        scenes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalEntity'
+        episodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Episode'
+    CanonicalEntity:
+      type: object
+      required: [id, name, lock]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        lock:
+          type: string
+          minLength: 1
+          description: 后续镜头必须复用的稳定视觉描述
+    Episode:
+      type: object
+      required: [id, title, shots]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        shots:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Shot'
+    Shot:
+      type: object
+      required: [id, sceneId, visualPrompt, durationSeconds]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        sceneId:
+          type: string
+          minLength: 1
+        characterIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        visualPrompt:
+          type: string
+          minLength: 1
+        motionPrompt:
+          type: string
+        dialogue:
+          type: string
+        durationSeconds:
+          type: number
+          minimum: 1
+          maximum: 15
+
+    CreateUploadIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, fileName, contentType, sizeBytes, sha256]
+      properties:
+        kind:
+          $ref: '#/components/schemas/AssetKind'
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, audio/mpeg, audio/wav, video/mp4, text/plain]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 262144000
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+    UploadIntent:
+      type: object
+      required: [assetId, method, uploadUrl, requiredHeaders, expiresAt]
+      properties:
+        assetId:
+          type: string
+          minLength: 1
+        method:
+          type: string
+          const: PUT
+        uploadUrl:
+          type: string
+          format: uri
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    CompleteUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [sha256]
+      properties:
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+    Asset:
+      type: object
+      required: [id, projectId, kind, status, contentType, sizeBytes, revision, createdAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        projectId:
+          type: string
+          minLength: 1
+        kind:
+          $ref: '#/components/schemas/AssetKind'
+        status:
+          type: string
+          enum: [uploading, validating, ready, rejected, deleted]
+        contentType:
+          type: string
+          minLength: 1
+        sizeBytes:
+          type: integer
+          minimum: 0
+        width:
+          type: [integer, 'null']
+        height:
+          type: [integer, 'null']
+        durationSeconds:
+          type: [number, 'null']
+        previewUrl:
+          type: [string, 'null']
+          format: uri
+        previewExpiresAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    AssetPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Asset'
+        nextCursor:
+          type: [string, 'null']
+          minLength: 1
+
+    CreateGenerationPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [scriptJobId, providerStrategy, shotIds]
+      properties:
+        scriptJobId:
+          type: string
+          minLength: 1
+        providerStrategy:
+          $ref: '#/components/schemas/ProviderStrategy'
+        shotIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        referenceAssetIds:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            minLength: 1
+        regenerateExisting:
+          type: boolean
+          default: false
+    UpdateGenerationPlanRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        providerStrategy:
+          $ref: '#/components/schemas/ProviderStrategy'
+        shotIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        referenceAssetIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+    GenerationPlan:
+      type: object
+      required: [id, projectId, scriptJobId, providerStrategy, shotIds, revision, createdAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        projectId:
+          type: string
+          minLength: 1
+        scriptJobId:
+          type: string
+          minLength: 1
+        providerStrategy:
+          $ref: '#/components/schemas/ProviderStrategy'
+        shotIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        referenceAssetIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        estimatedCost:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    StartRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        stopOnQuotaError:
+          type: boolean
+          default: true
+    RunActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [pause, resume, cancel]
+    GenerationRun:
+      type: object
+      required: [id, planId, projectId, status, progress, completedJobs, totalJobs, revision, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        planId:
+          type: string
+          minLength: 1
+        projectId:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        completedJobs:
+          type: integer
+          minimum: 0
+        totalJobs:
+          type: integer
+          minimum: 0
+        currentStage:
+          oneOf:
+            - $ref: '#/components/schemas/GenerationStage'
+            - type: 'null'
+        reservedCost:
+          $ref: '#/components/schemas/Money'
+        consumedCost:
+          $ref: '#/components/schemas/Money'
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    JobActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [retry, cancel]
+    GenerationJob:
+      type: object
+      required: [id, runId, stage, status, progress, attempt, revision, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        runId:
+          type: string
+          minLength: 1
+        stage:
+          $ref: '#/components/schemas/GenerationStage'
+        shotId:
+          type: [string, 'null']
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        attempt:
+          type: integer
+          minimum: 1
+        outputAssetIds:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/JobError'
+            - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    GenerationJobPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenerationJob'
+        nextCursor:
+          type: [string, 'null']
+          minLength: 1
+
+    SetBudgetRequest:
+      type: object
+      additionalProperties: false
+      required: [hardLimit]
+      properties:
+        hardLimit:
+          $ref: '#/components/schemas/Money'
+    Budget:
+      type: object
+      required: [projectId, hardLimit, reserved, consumed, available, revision, updatedAt]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        hardLimit:
+          $ref: '#/components/schemas/Money'
+        reserved:
+          $ref: '#/components/schemas/Money'
+        consumed:
+          $ref: '#/components/schemas/Money'
+        available:
+          $ref: '#/components/schemas/Money'
+        revision:
+          type: integer
+          minimum: 1
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    BudgetEstimate:
+      type: object
+      required: [planId, minimum, expected, maximum, expiresAt]
+      properties:
+        planId:
+          type: string
+          minLength: 1
+        minimum:
+          $ref: '#/components/schemas/Money'
+        expected:
+          $ref: '#/components/schemas/Money'
+        maximum:
+          $ref: '#/components/schemas/Money'
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    Money:
+      type: object
+      required: [currency, amount]
+      properties:
+        currency:
+          type: string
+          enum: [CNY]
+        amount:
+          type: string
+          pattern: '^(0|[1-9][0-9]*)(\.[0-9]{1,4})?$'
+
+    CreateExportRequest:
+      type: object
+      additionalProperties: false
+      required: [runId, format, resolution]
+      properties:
+        runId:
+          type: string
+          minLength: 1
+        format:
+          type: string
+          enum: [mp4]
+        resolution:
+          type: string
+          enum: [720p, 1080p]
+        includeSubtitles:
+          type: boolean
+          default: true
+        normalizeAudio:
+          type: boolean
+          default: true
+    ExportActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [cancel, retry]
+    Export:
+      type: object
+      required: [id, projectId, runId, status, progress, revision, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        projectId:
+          type: string
+          minLength: 1
+        runId:
+          type: string
+          minLength: 1
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        assetId:
+          type: [string, 'null']
+          minLength: 1
+        durationSeconds:
+          type: [number, 'null']
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/JobError'
+            - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    ExportPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Export'
+        nextCursor:
+          type: [string, 'null']
+          minLength: 1
+    DownloadTicket:
+      type: object
+      required: [url, expiresAt, sha256]
+      properties:
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+
+    JobError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+        detail:
+          type: string
+        requestId:
+          type: string
+        retryAfterSeconds:
+          type: integer
+          minimum: 0

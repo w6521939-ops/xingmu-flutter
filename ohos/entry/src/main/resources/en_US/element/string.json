@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "AI motion-comic video generation client"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Xingmu AI Motion Comic entry"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Xingmu AI Motion Comic"
+    }
+  ]
+}
