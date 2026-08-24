@@ -64,3 +64,4 @@ secrets.*
 /outputs/
 /.manju-studio/
 /backend/data/
+/services/basic_video_server/storage/

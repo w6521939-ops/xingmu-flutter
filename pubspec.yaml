@@ -9,6 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  video_player:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 97e9265ae2ab44c913d5d943ad68bec0c07a040e
+      path: packages/video_player/video_player
 
 dev_dependencies:
   flutter_test:

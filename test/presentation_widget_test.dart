@@ -49,6 +49,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('首页工具网格可从首帧极窄宽度恢复到手机宽度', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: XingmuTheme.light(),
+        darkTheme: XingmuTheme.dark(),
+        themeMode: ThemeMode.dark,
+        home: Scaffold(
+          body: HomePage(
+            projects: const [],
+            demoMode: true,
+            onCreateProject: () {},
+            onOpenProject: (_) {},
+            onNavigate: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('home-tool-主题成剧')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-tool-视频生成')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('主题创作页不承诺未接入的草稿保存或编辑持久化', (tester) async {
     await _pumpPage(
       tester,

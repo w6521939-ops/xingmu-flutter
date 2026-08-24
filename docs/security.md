@@ -10,6 +10,7 @@
 
 - 用户访问令牌应短期有效，通过系统安全存储保存；刷新令牌按后端策略轮换和撤销。
 - 供应商密钥存入服务端 Secret Manager 或受控环境变量，不写数据库明文、不返回客户端、不记录日志。
+- Video Lab 的 Wan Adapter 默认关闭；只有 `XINGMU_WAN_ADAPTER_ENABLED=true` 且服务端存在 `DASHSCOPE_API_KEY` 或运维者显式指定 `--dashscope-key-file` 时才可调用。禁止自动搜索 `key.txt`、D 盘或原 Electron 项目文件。
 - Bearer Token 只放 `Authorization` 请求头，不放 URL、SSE 查询参数、分析事件或崩溃报告。
 - 每个请求都按用户和项目执行对象级授权；知道资源 ID 不等于有访问权。
 - 登出时清理本地令牌、用户缓存和待上传临时文件。
@@ -36,6 +37,7 @@
 - 图像、音频、视频解析放在隔离进程/容器，限制 CPU、内存、磁盘和执行时间。
 - 预览与下载使用短期签名 URL；日志、剪贴板和持久缓存不得记录完整 URL 查询参数。
 - 供应商临时结果由后端立即下载到受控存储，并验证大小与哈希。
+- Wan 临时 `video_url` 不得出现在 Flutter 响应、manifest、script、日志或剪贴板；客户端只获取同源 `/shots/{shotId}/video.mp4`。
 - 删除项目时明确软删除期限、最终清理时间和备份保留策略。
 
 ## 6. 生成内容与隐私
@@ -44,6 +46,8 @@
 - 未得到授权不得上传他人肖像、声音、作品或敏感个人信息。
 - 后端执行内容安全策略，并向客户端返回可理解但不过度暴露内部规则的错误码。
 - 生成内容应保留来源、模型、时间和计划修订等审计元数据；对外展示时按法规和平台要求标识 AI 生成。
+- 本地模板结果必须保留服务端真实性字段：`executionKind=template`、`visualSource=fixed_project_assets`、`generatedForRequest=false`、`containsAiGeneratedAssets=true`、`assetProvenance=openai_imagegen_project_assets`。客户端既不能把固定素材合成误标为本次主题 AI 生成，也不能隐瞒固定画面本身来自预生成 ImageGen 素材。
+- Wan hybrid 必须返回 `executionKind=hybrid`、`generatedForRequest=true`、`modelExecution={text: local, image: pre_generated, video: cloud, voice: local}`、`compositionType=shot_videos_concat` 与 `sourceClipCount=3`。`generatedForRequest=true` 只表示本次请求生成了三段 Wan 镜头视频；首尾帧仍是固定 ImageGen 项目素材，不得误标为按 `story` 重绘。
 - 默认不把用户内容用于训练；如策略变化必须单独、明确、可撤回地征得同意。
 
 ## 7. SSE 与后台任务（客户端后续接入）
@@ -58,6 +62,7 @@
 
 - 启动前给出费用区间并预留预算；任务结束按实际金额结算，取消/失败释放未消费预留。
 - 每个项目具有硬上限，供应商余额不足或配额异常时停止继续派发后续收费任务。
+- Wan 720P/3 秒请求仍是可能产生费用的供应商调用；本轮真实付费请求、费用与效果均为 `not run`，不得因离线假 Provider 测试通过而宣称已验证付费能力。
 - 重试次数、并发度、视频时长、分辨率、上传大小和每日用量均设置服务端上限。
 - 管理接口、Provider 切换和预算上调需要更高权限和审计记录。
 
@@ -87,3 +92,15 @@
 - [ ] 日志、崩溃报告和分析事件完成脱敏检查。
 - [ ] 用户可理解云端处理、第三方供应商和删除保留规则。
 - [ ] Android 与 OpenHarmony 真机上的拒权、离线、后台恢复和下载失败均已验证。
+
+## 12. 本地 Video Lab 边界
+
+- `services/basic_video_server` 只用于本机开发与模拟器验收，默认监听 loopback。它没有认证，也不返回 CORS 允许头，不能直接暴露到公网或供浏览器跨域调用。
+- 本地服务不接收 API Key、支付信息或任意 FFmpeg 参数；文本、图片、视频和声音模型 ID、镜头数、时长、比例和故事长度都由服务端白名单校验。
+- 本地三镜头模板固定使用项目自有的 `《月背最后一单》` 画面。任意输入不会触发重新绘图；任务和输出必须返回 `executionKind=template`、`visualSource=fixed_project_assets`、`generatedForRequest=false`、`containsAiGeneratedAssets=true`、`assetProvenance=openai_imagegen_project_assets`、`templateStoryTitle` 和非空 `visualWarning`。
+- hybrid 只把固定首尾帧发送给 `wan2.7-i2v-2026-04-25`，不把用户 Key、付费信息或任意本机文件路径放入请求。三段成功镜头须立即转存，再由 FFmpeg 合成最终 MP4；GIF 只是预览。
+- Windows 系统 TTS 与 FFmpeg 都是开发机外部依赖，不进入手机安装包。服务端通过受控参数调用，不执行用户拼接的 shell 命令；输出目录按服务生成的 UUID 隔离。
+- GIF/MP4 可以支持单段 Range；`manifest.json` 与 `script.json` 不接受媒体 Range 语义。所有结果 URL 必须与任务 API 同源，不能直接暴露供应商临时地址。
+- 开发期 HTTP 需要客户端显式启用 `ALLOW_INSECURE_VIDEO_LAB`；release/生产必须使用 HTTPS、认证、授权、速率限制和持久化幂等。
+- `wan2.7-i2v-2026-04-25` 只在显式 enable + 服务端 Key 后标记为 `available`；hybrid Pipeline 还要求六张首尾帧、Huihui、FFmpeg 和 ffprobe。`qwen3.6-plus`、`wan2.7-image-pro` 和 `cosyvoice-v3.5-plus` 仍必须为 `requires_configuration`。
+- 付费入口只复制 `help.aliyun.com` 上的供应商官方 HTTPS 地址；App 不代收款、不读取余额、不保存支付资料，也不把 Provider 凭据保存到设备。

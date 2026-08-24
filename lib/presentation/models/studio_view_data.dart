@@ -9,6 +9,7 @@ enum StudioDestination {
   voice,
   tasks,
   result,
+  models,
   settings,
 }
 

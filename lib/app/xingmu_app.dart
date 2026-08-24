@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../application/application.dart';
@@ -9,6 +10,7 @@ import '../features/script/presentation/script_review_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/shots/presentation/shot_workbench_page.dart';
 import '../features/tasks/presentation/task_center_page.dart';
+import '../features/video_lab/video_lab.dart';
 import '../features/voice/presentation/voice_studio_page.dart';
 import '../presentation/models/studio_view_data.dart';
 import '../presentation/adapters/studio_presentation_mapper.dart';
@@ -23,6 +25,14 @@ const String _environmentApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: '',
 );
+const String _environmentVideoLabUrl = String.fromEnvironment(
+  'VIDEO_LAB_URL',
+  defaultValue: '',
+);
+const bool _environmentAllowInsecureVideoLab = bool.fromEnvironment(
+  'ALLOW_INSECURE_VIDEO_LAB',
+  defaultValue: false,
+);
 
 class XingmuApp extends StatefulWidget {
   const XingmuApp({
@@ -30,11 +40,19 @@ class XingmuApp extends StatefulWidget {
     this.demoMode = _environmentDemoMode,
     this.apiBaseUrl = _environmentApiBaseUrl,
     this.controller,
+    this.videoLabUrl = _environmentVideoLabUrl,
+    this.allowInsecureVideoLab = _environmentAllowInsecureVideoLab,
+    this.videoLabController,
+    this.mp4PlaybackControllerFactory,
   });
 
   final bool demoMode;
   final String apiBaseUrl;
   final StudioController? controller;
+  final String videoLabUrl;
+  final bool allowInsecureVideoLab;
+  final VideoLabController? videoLabController;
+  final Mp4PlaybackControllerFactory? mp4PlaybackControllerFactory;
 
   @override
   State<XingmuApp> createState() => _XingmuAppState();
@@ -45,11 +63,18 @@ class _XingmuAppState extends State<XingmuApp> {
   StudioController? _controller;
   Object? _configurationError;
   late final bool _ownsController;
+  late final VideoLabController _videoLabController;
+  late final bool _ownsVideoLabController;
 
   @override
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
+    _ownsVideoLabController = widget.videoLabController == null;
+    _videoLabController =
+        widget.videoLabController ??
+        VideoLabController(repository: _createVideoLabRepository());
+    _videoLabController.initialize();
     try {
       if (!widget.demoMode && widget.controller == null) {
         throw const StudioConfigurationException(
@@ -73,7 +98,23 @@ class _XingmuAppState extends State<XingmuApp> {
   @override
   void dispose() {
     if (_ownsController) _controller?.dispose();
+    if (_ownsVideoLabController) _videoLabController.dispose();
     super.dispose();
+  }
+
+  VideoLabRepository? _createVideoLabRepository() {
+    final raw = widget.videoLabUrl.trim();
+    if (raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) return null;
+    try {
+      return HttpVideoLabRepository(
+        baseUri: uri,
+        allowInsecureTransport: !kReleaseMode && widget.allowInsecureVideoLab,
+      );
+    } on ArgumentError {
+      return null;
+    }
   }
 
   @override
@@ -90,6 +131,9 @@ class _XingmuAppState extends State<XingmuApp> {
               controller: _controller!,
               demoMode: widget.demoMode,
               apiBaseUrl: widget.apiBaseUrl,
+              videoLabUrl: widget.videoLabUrl,
+              videoLabController: _videoLabController,
+              mp4PlaybackControllerFactory: widget.mp4PlaybackControllerFactory,
               themeMode: _themeMode,
               onThemeChanged: (mode) => setState(() => _themeMode = mode),
             ),
@@ -102,27 +146,51 @@ class XingmuStudioShell extends StatefulWidget {
     required this.controller,
     required this.demoMode,
     required this.apiBaseUrl,
+    required this.videoLabUrl,
+    required this.videoLabController,
     required this.themeMode,
     required this.onThemeChanged,
     super.key,
+    this.mp4PlaybackControllerFactory,
   });
 
   final StudioController controller;
   final bool demoMode;
   final String apiBaseUrl;
+  final String videoLabUrl;
+  final VideoLabController videoLabController;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
+  final Mp4PlaybackControllerFactory? mp4PlaybackControllerFactory;
 
   @override
   State<XingmuStudioShell> createState() => _XingmuStudioShellState();
 }
 
 class _XingmuStudioShellState extends State<XingmuStudioShell> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   StudioDestination _destination = StudioDestination.home;
+  bool _mobileMenuOpen = false;
 
   void _go(StudioDestination destination) {
-    setState(() => _destination = destination);
+    setState(() {
+      _mobileMenuOpen = false;
+      _destination = destination;
+    });
+  }
+
+  void _openMobileMenu() {
+    setState(() => _mobileMenuOpen = true);
+  }
+
+  void _closeMobileMenu() {
+    setState(() => _mobileMenuOpen = false);
+  }
+
+  void _goFromMobileMenu(StudioDestination destination) {
+    setState(() {
+      _mobileMenuOpen = false;
+      _destination = destination;
+    });
   }
 
   void _message(
@@ -145,6 +213,17 @@ class _XingmuStudioShellState extends State<XingmuStudioShell> {
       );
   }
 
+  Future<void> _openMp4(Uri uri) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => Mp4PlayerPage(
+          videoUrl: uri,
+          controllerFactory: widget.mp4PlaybackControllerFactory,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -152,115 +231,111 @@ class _XingmuStudioShellState extends State<XingmuStudioShell> {
       builder: (context, _) => LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 900;
-          return Scaffold(
-            key: _scaffoldKey,
-            appBar: _StudioAppBar(
-              compact: compact,
-              destination: _destination,
-              demoMode: widget.demoMode,
-              onOpenNavigation: () => _scaffoldKey.currentState?.openDrawer(),
-              onOpenTasks: () => _go(StudioDestination.tasks),
-            ),
-            drawer: compact
-                ? _StudioDrawer(
-                    selected: _destination,
-                    demoMode: widget.demoMode,
-                    onSelected: (destination) {
-                      Navigator.of(context).pop();
-                      _go(destination);
-                    },
-                  )
-                : null,
-            body: Row(
-              children: [
-                if (!compact)
-                  _DesktopNavigation(
-                    selected: _destination,
-                    demoMode: widget.demoMode,
-                    onSelected: _go,
-                  ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      if (widget.controller.hasError)
-                        _ControllerErrorBanner(
-                          message: widget.controller.errorMessage ?? '未知错误',
-                          onDismiss: widget.controller.clearError,
-                          onRetry: widget.controller.currentProject == null
-                              ? widget.controller.initialize
-                              : widget.controller.refresh,
-                        ),
-                      Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          switchInCurve: Curves.easeOut,
-                          switchOutCurve: Curves.easeIn,
-                          child: KeyedSubtree(
-                            key: ValueKey(_destination),
-                            child: _buildPage(),
+          return PopScope(
+            canPop: !(compact && _mobileMenuOpen),
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop && _mobileMenuOpen) _closeMobileMenu();
+            },
+            child: Scaffold(
+              appBar: _StudioAppBar(
+                compact: compact,
+                destination: _destination,
+                demoMode: widget.demoMode,
+                onOpenNavigation: _openMobileMenu,
+                onOpenTasks: () => _go(StudioDestination.tasks),
+              ),
+              body: compact && _mobileMenuOpen
+                  ? _StudioNavigationPanel(
+                      onClose: _closeMobileMenu,
+                      selected: _destination,
+                      demoMode: widget.demoMode,
+                      onSelected: _goFromMobileMenu,
+                    )
+                  : Row(
+                      children: [
+                        if (!compact)
+                          _DesktopNavigation(
+                            selected: _destination,
+                            demoMode: widget.demoMode,
+                            onSelected: _go,
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            bottomNavigationBar: compact
-                ? SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outlineVariant,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: NavigationBar(
-                            selectedIndex: _mobileIndex(_destination),
-                            onDestinationSelected: (index) =>
-                                _go(_mobileDestination(index)),
-                            destinations: const [
-                              NavigationDestination(
-                                icon: Icon(Icons.home_outlined),
-                                selectedIcon: Icon(Icons.home_rounded),
-                                label: '首页',
-                              ),
-                              NavigationDestination(
-                                icon: Icon(Icons.auto_stories_outlined),
-                                selectedIcon: Icon(Icons.auto_stories_rounded),
-                                label: '创作',
-                              ),
-                              NavigationDestination(
-                                icon: Icon(Icons.movie_creation_outlined),
-                                selectedIcon: Icon(
-                                  Icons.movie_creation_rounded,
+                        Expanded(
+                          child: Column(
+                            children: [
+                              if (widget.controller.hasError)
+                                _ControllerErrorBanner(
+                                  message:
+                                      widget.controller.errorMessage ?? '未知错误',
+                                  onDismiss: widget.controller.clearError,
+                                  onRetry:
+                                      widget.controller.currentProject == null
+                                      ? widget.controller.initialize
+                                      : widget.controller.refresh,
                                 ),
-                                label: '工作台',
-                              ),
-                              NavigationDestination(
-                                icon: Icon(Icons.task_alt_outlined),
-                                selectedIcon: Icon(Icons.task_alt_rounded),
-                                label: '任务',
-                              ),
-                              NavigationDestination(
-                                icon: Icon(Icons.person_outline_rounded),
-                                selectedIcon: Icon(Icons.person_rounded),
-                                label: '我的',
-                              ),
+                              Expanded(child: _buildPage()),
                             ],
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  )
-                : null,
+              bottomNavigationBar: compact
+                  ? SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: NavigationBar(
+                              selectedIndex: _mobileIndex(_destination),
+                              onDestinationSelected: (index) =>
+                                  _go(_mobileDestination(index)),
+                              destinations: const [
+                                NavigationDestination(
+                                  icon: Icon(Icons.home_outlined),
+                                  selectedIcon: Icon(Icons.home_rounded),
+                                  label: '首页',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.auto_stories_outlined),
+                                  selectedIcon: Icon(
+                                    Icons.auto_stories_rounded,
+                                  ),
+                                  label: '创作',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.movie_creation_outlined),
+                                  selectedIcon: Icon(
+                                    Icons.movie_creation_rounded,
+                                  ),
+                                  label: '工作台',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.task_alt_outlined),
+                                  selectedIcon: Icon(Icons.task_alt_rounded),
+                                  label: '任务',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.person_outline_rounded),
+                                  selectedIcon: Icon(Icons.person_rounded),
+                                  label: '我的',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
           );
         },
       ),
@@ -460,6 +535,13 @@ class _XingmuStudioShellState extends State<XingmuStudioShell> {
         onBackHome: () => _go(StudioDestination.home),
         onNavigateStep: _go,
       ),
+      StudioDestination.models => VideoLabPage(
+        controller: widget.videoLabController,
+        baseUrlLabel: widget.videoLabUrl.trim().isEmpty
+            ? '未配置'
+            : widget.videoLabUrl,
+        onOpenMediaUrl: _openMp4,
+      ),
       StudioDestination.settings => SettingsPage(
         data: SettingsViewData(
           demoMode: widget.demoMode,
@@ -553,7 +635,9 @@ class _XingmuStudioShellState extends State<XingmuStudioShell> {
     StudioDestination.creation ||
     StudioDestination.script ||
     StudioDestination.assets => 1,
-    StudioDestination.shots || StudioDestination.voice => 2,
+    StudioDestination.shots ||
+    StudioDestination.voice ||
+    StudioDestination.models => 2,
     StudioDestination.tasks || StudioDestination.result => 3,
     StudioDestination.settings => 4,
   };
@@ -1027,60 +1111,87 @@ class _DesktopNavigation extends StatelessWidget {
   }
 }
 
-class _StudioDrawer extends StatelessWidget {
-  const _StudioDrawer({
+class _StudioNavigationPanel extends StatelessWidget {
+  const _StudioNavigationPanel({
+    required this.onClose,
     required this.selected,
     required this.demoMode,
     required this.onSelected,
   });
 
+  final VoidCallback onClose;
   final StudioDestination selected;
   final bool demoMode;
   final ValueChanged<StudioDestination> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return NavigationDrawer(
-      selectedIndex: StudioDestination.values.indexOf(selected),
-      onDestinationSelected: (index) =>
-          onSelected(StudioDestination.values[index]),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 24, 18, 18),
-          child: Row(
-            children: [
-              const XingmuLogo(size: 46),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '星幕工作台',
-                      style: Theme.of(context).textTheme.titleMedium,
+    return Material(
+      key: const ValueKey('mobile-navigation-panel'),
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 24,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 16),
+              child: Row(
+                children: [
+                  const XingmuLogo(size: 46),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '星幕工作台',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          demoMode ? '演示模式' : '远程服务',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      demoMode ? '演示模式' : '远程服务',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ],
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    tooltip: '关闭全部页面',
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(indent: 8, endIndent: 8),
+            const SizedBox(height: 6),
+            for (final destination in StudioDestination.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: ListTile(
+                  key: ValueKey('drawer-${destination.name}'),
+                  selected: selected == destination,
+                  selectedTileColor: Theme.of(
+                    context,
+                  ).colorScheme.secondaryContainer,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  leading: Icon(
+                    selected == destination
+                        ? destination.selectedIcon
+                        : destination.icon,
+                  ),
+                  title: Text(destination.label),
+                  onTap: () => onSelected(destination),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
-        const Divider(indent: 20, endIndent: 20),
-        const SizedBox(height: 8),
-        for (final destination in StudioDestination.values)
-          NavigationDrawerDestination(
-            icon: Icon(destination.icon),
-            selectedIcon: Icon(destination.selectedIcon),
-            label: Text(destination.label),
-          ),
-        const SizedBox(height: 18),
-      ],
+      ),
     );
   }
 }
@@ -1095,6 +1206,7 @@ extension on StudioDestination {
     StudioDestination.voice => '配音工作台',
     StudioDestination.tasks => '任务中心',
     StudioDestination.result => '成片结果',
+    StudioDestination.models => '漫剧快制',
     StudioDestination.settings => '设置',
   };
 
@@ -1107,6 +1219,7 @@ extension on StudioDestination {
     StudioDestination.voice => Icons.graphic_eq_rounded,
     StudioDestination.tasks => Icons.task_alt_outlined,
     StudioDestination.result => Icons.video_file_outlined,
+    StudioDestination.models => Icons.model_training_outlined,
     StudioDestination.settings => Icons.settings_outlined,
   };
 
@@ -1119,6 +1232,7 @@ extension on StudioDestination {
     StudioDestination.voice => Icons.graphic_eq_rounded,
     StudioDestination.tasks => Icons.task_alt_rounded,
     StudioDestination.result => Icons.video_file_rounded,
+    StudioDestination.models => Icons.model_training_rounded,
     StudioDestination.settings => Icons.settings_rounded,
   };
 }

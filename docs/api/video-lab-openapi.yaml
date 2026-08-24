@@ -1,0 +1,1552 @@
+openapi: 3.1.0
+info:
+  title: Xingmu Local Motion Comic Lab API
+  version: 0.3.0
+  description: >-
+    无认证、无 CORS 的本地开发契约，仅用于原生 Android/OpenHarmony
+    客户端与模拟器验证三镜头漫剧及 legacy 短视频闭环。免费路径使用固定
+    《月背最后一单》画面、Windows TTS 和 FFmpeg；hybrid 路径则使用三组固定首尾帧
+    调用 wan2.7-i2v-2026-04-25 生成三段真实镜头 MP4，再用 Huihui 和 FFmpeg
+    完成配音、字幕与合片。hybrid 仅在受信服务端显式启用 Adapter 且配置
+    凭据时可用；不实现千问脚本、Wan 重绘首尾帧或 CosyVoice。GIF 始终只是
+    预览，最终成片是 MP4。服务不能直接暴露公网，也不能替代生产 API。
+servers:
+  - url: http://127.0.0.1:8787
+    description: 开发机 loopback；设备端必须使用实际可达的调试地址
+security: []
+paths:
+  /health:
+    get:
+      operationId: getVideoLabHealth
+      summary: 检查本地媒体与漫剧 Pipeline
+      responses:
+        "200":
+          description: FFmpeg/ffprobe 可用；漫剧 Pipeline 可能仍因 TTS 或素材缺失而不可用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: FFmpeg 或 ffprobe 不可用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /v1/model-catalog:
+    get:
+      operationId: listVideoLabModels
+      summary: 获取文本、图片、视频、声音模型与漫剧 Pipeline
+      description: >-
+        本地目录项按主机能力动态标记 available。Wan 视频项只在
+        XINGMU_WAN_ADAPTER_ENABLED 显式启用且服务端存在凭据时为 available；
+        hybrid Pipeline 还要求六张首尾帧、Huihui、FFmpeg 和 ffprobe。
+        qwen3.6-plus、wan2.7-image-pro 和 cosyvoice-v3.5-plus 仍为
+        requires_configuration，不代表已实现。
+      responses:
+        "200":
+          description: 模型和 Pipeline 目录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelCatalog"
+  /v1/comic-jobs:
+    post:
+      operationId: createMotionComicJob
+      summary: 创建本地或 Wan hybrid 三镜头漫剧任务
+      description: >-
+        只接受完整本地组合，或仅将 videoModelId 替换为
+        wan2.7-i2v-2026-04-25 的 hybrid 组合。story 仅进入审计字段，不会重绘
+        固定首尾帧。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComicJob"
+      responses:
+        "202":
+          description: 已加入有界本地队列
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComicJob"
+        "400":
+          description: 字段、模型组合、比例、镜头数或时长无效
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: 活跃任务或本进程保留任务已达上限
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: >-
+            选定 Pipeline 不可用；hybrid 可能缺少显式 Wan 启用、服务端凭据、
+            六张首尾帧、FFmpeg/ffprobe 或 Microsoft Huihui Desktop
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/comic-jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getMotionComicJob
+      summary: 获取漫剧任务、总阶段与三个镜头状态
+      responses:
+        "200":
+          description: 当前任务快照
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComicJob"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/comic-jobs/{jobId}/preview.gif:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getMotionComicPreview
+      summary: 获取成功任务的 GIF 预览（非最终成片）
+      description: GIF 只用于快速预览；最终成片始终从 videoUrl 获取 MP4。
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 GIF 预览
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+          content:
+            image/gif:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialGif"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/comic-jobs/{jobId}/video.mp4:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getMotionComicVideo
+      summary: 获取成功任务的最终 MP4
+      description: hybrid 成片由三段已立即转存的供应商镜头 MP4 按顺序合片。
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 MP4
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialVideo"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/comic-jobs/{jobId}/manifest.json:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getMotionComicManifest
+      summary: 获取本地或 hybrid 漫剧媒体清单
+      description: 普通 JSON 响应，不实现媒体 Range 语义。
+      responses:
+        "200":
+          description: 漫剧媒体清单
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComicManifest"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+  /v1/comic-jobs/{jobId}/script.json:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getMotionComicScript
+      summary: 获取固定模板剧本与首尾帧信息
+      description: 普通 JSON 响应；requestedStory 仅为审计输入，模板内容保持固定。
+      responses:
+        "200":
+          description: 固定三镜头剧本
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComicScript"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+  /v1/comic-jobs/{jobId}/shots/{shotId}/first-frame.png:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - $ref: "#/components/parameters/ShotId"
+    get:
+      operationId: getHybridComicShotFirstFrame
+      summary: 获取 hybrid 镜头的固定首帧
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 PNG 首帧
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialPng"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/comic-jobs/{jobId}/shots/{shotId}/last-frame.png:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - $ref: "#/components/parameters/ShotId"
+    get:
+      operationId: getHybridComicShotLastFrame
+      summary: 获取 hybrid 镜头的固定尾帧
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 PNG 尾帧
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialPng"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/comic-jobs/{jobId}/shots/{shotId}/video.mp4:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+      - $ref: "#/components/parameters/ShotId"
+    get:
+      operationId: getHybridComicShotVideo
+      summary: 获取 hybrid 镜头的已转存并标准化 MP4
+      description: 不暴露供应商临时 video_url。
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整镜头 MP4
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialVideo"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/video-jobs:
+    post:
+      deprecated: true
+      operationId: createLegacyVideoLabJob
+      summary: 创建 legacy 单段字幕卡任务
+      description: 兼容上一版客户端；新漫剧客户端应使用 /v1/comic-jobs。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLegacyVideoJob"
+      responses:
+        "202":
+          description: 已加入有界本地队列
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyVideoJob"
+        "400":
+          description: 请求无效
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: 服务容量已达上限
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/video-jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      deprecated: true
+      operationId: getLegacyVideoLabJob
+      summary: 获取 legacy 单段任务状态
+      responses:
+        "200":
+          description: 当前任务快照
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyVideoJob"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/video-jobs/{jobId}/preview.gif:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      deprecated: true
+      operationId: getLegacyVideoLabPreview
+      summary: 获取 legacy GIF 预览
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 GIF
+          content:
+            image/gif:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialGif"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+  /v1/video-jobs/{jobId}/video.mp4:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      deprecated: true
+      operationId: getLegacyVideoLabVideo
+      summary: 获取 legacy MP4
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: 完整 MP4
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "206":
+          $ref: "#/components/responses/PartialVideo"
+        "404":
+          $ref: "#/components/responses/OutputNotFound"
+        "416":
+          $ref: "#/components/responses/RangeNotSatisfiable"
+components:
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ShotId:
+      name: shotId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^E01-SH0[1-3]$'
+    Range:
+      name: Range
+      in: header
+      required: false
+      schema:
+        type: string
+      example: bytes=0-1023
+  responses:
+    NotFound:
+      description: 任务不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    OutputNotFound:
+      description: 输出尚不可用
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RangeNotSatisfiable:
+      description: Range 不可满足
+      headers:
+        Content-Range:
+          required: true
+          schema:
+            type: string
+    PartialGif:
+      description: 单段 Range 响应
+      headers:
+        Accept-Ranges:
+          schema:
+            const: bytes
+        Content-Range:
+          required: true
+          schema:
+            type: string
+      content:
+        image/gif:
+          schema:
+            type: string
+            format: binary
+    PartialVideo:
+      description: 单段 Range 响应
+      headers:
+        Accept-Ranges:
+          schema:
+            const: bytes
+        Content-Range:
+          required: true
+          schema:
+            type: string
+      content:
+        video/mp4:
+          schema:
+            type: string
+            format: binary
+    PartialPng:
+      description: 单段 Range 响应
+      headers:
+        Accept-Ranges:
+          schema:
+            const: bytes
+        Content-Range:
+          required: true
+          schema:
+            type: string
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - ffmpegAvailable
+        - huihuiTtsAvailable
+        - comicPipelineAvailable
+        - wanVideoProviderAvailable
+        - hybridComicPipelineAvailable
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        ffmpegAvailable:
+          type: boolean
+        huihuiTtsAvailable:
+          type: boolean
+        comicPipelineAvailable:
+          type: boolean
+        wanVideoProviderAvailable:
+          type: boolean
+        hybridComicPipelineAvailable:
+          type: boolean
+    ModelCatalog:
+      type: object
+      additionalProperties: false
+      required: [textModels, imageModels, videoModels, voiceModels, comicPipelines]
+      properties:
+        textModels:
+          type: array
+          minItems: 1
+          items:
+            allOf:
+              - $ref: "#/components/schemas/Model"
+              - type: object
+                properties:
+                  capability:
+                    const: text
+        imageModels:
+          type: array
+          minItems: 1
+          items:
+            allOf:
+              - $ref: "#/components/schemas/Model"
+              - type: object
+                properties:
+                  capability:
+                    const: image
+        videoModels:
+          type: array
+          minItems: 1
+          items:
+            allOf:
+              - $ref: "#/components/schemas/Model"
+              - type: object
+                properties:
+                  capability:
+                    const: video
+        voiceModels:
+          type: array
+          minItems: 1
+          items:
+            allOf:
+              - $ref: "#/components/schemas/Model"
+              - type: object
+                properties:
+                  capability:
+                    const: voice
+        comicPipelines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ComicPipeline"
+    Model:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - capability
+        - provider
+        - displayName
+        - description
+        - pricingType
+        - availability
+        - requiresCredential
+      properties:
+        id:
+          type: string
+          minLength: 1
+        capability:
+          type: string
+          enum: [text, image, video, voice]
+        provider:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        pricingType:
+          type: string
+          enum: [free, paid]
+        availability:
+          type: string
+          enum: [available, requires_configuration]
+        requiresCredential:
+          type: boolean
+        executionKind:
+          type: string
+          enum: [template, cloud_ai, hybrid]
+        visualSource:
+          type: string
+          minLength: 1
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          type: boolean
+        assetProvenance:
+          type: string
+          minLength: 1
+        pricingUrl:
+          type: string
+          format: uri
+          pattern: '^https://help\.aliyun\.com/'
+        billingUrl:
+          type: string
+          format: uri
+          pattern: '^https://help\.aliyun\.com/'
+    ComicPipeline:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - provider
+        - displayName
+        - description
+        - pricingType
+        - availability
+        - requiresCredential
+        - executionKind
+        - visualSource
+        - generatedForRequest
+        - containsAiGeneratedAssets
+        - assetProvenance
+        - textModelId
+        - imageModelId
+        - videoModelId
+        - voiceModelId
+      properties:
+        id:
+          type: string
+          minLength: 1
+        provider:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        pricingType:
+          type: string
+          enum: [free, paid]
+        availability:
+          type: string
+          enum: [available, requires_configuration]
+        requiresCredential:
+          type: boolean
+        executionKind:
+          type: string
+          enum: [template, cloud_ai, hybrid]
+        visualSource:
+          type: string
+          minLength: 1
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          type: boolean
+        assetProvenance:
+          type: string
+          minLength: 1
+        templateStoryTitle:
+          type: string
+          minLength: 1
+        shotCount:
+          type: integer
+          minimum: 1
+        shotDurationSeconds:
+          type: integer
+          minimum: 1
+        aspectRatio:
+          type: string
+          minLength: 1
+        textModelId:
+          type: string
+          minLength: 1
+        imageModelId:
+          type: string
+          minLength: 1
+        videoModelId:
+          type: string
+          minLength: 1
+        voiceModelId:
+          type: string
+          minLength: 1
+        modelExecution:
+          $ref: "#/components/schemas/ModelExecution"
+        pricingUrl:
+          type: string
+          format: uri
+          pattern: '^https://help\.aliyun\.com/'
+        billingUrl:
+          type: string
+          format: uri
+          pattern: '^https://help\.aliyun\.com/'
+      allOf:
+        - if:
+            properties:
+              executionKind:
+                const: hybrid
+          then:
+            required: [modelExecution]
+            properties:
+              modelExecution:
+                $ref: "#/components/schemas/HybridModelExecution"
+    ModelExecution:
+      type: object
+      additionalProperties: false
+      required: [text, image, video, voice]
+      properties:
+        text:
+          type: string
+          enum: [local, pre_generated, cloud]
+        image:
+          type: string
+          enum: [local, pre_generated, cloud]
+        video:
+          type: string
+          enum: [local, pre_generated, cloud]
+        voice:
+          type: string
+          enum: [local, pre_generated, cloud]
+    CreateComicJob:
+      type: object
+      additionalProperties: false
+      required:
+        - story
+        - textModelId
+        - imageModelId
+        - videoModelId
+        - voiceModelId
+        - aspectRatio
+        - shotCount
+        - shotDurationSeconds
+      properties:
+        story:
+          type: string
+          minLength: 4
+          maxLength: 500
+        textModelId:
+          const: local_storyboard_template
+        imageModelId:
+          const: fixed_moon_courier_assets
+        videoModelId:
+          type: string
+          enum: [local_ffmpeg_motion_comic, wan2.7-i2v-2026-04-25]
+        voiceModelId:
+          const: windows_sapi_huihui
+        aspectRatio:
+          const: "9:16"
+        shotCount:
+          const: 3
+        shotDurationSeconds:
+          const: 3
+    ComicJob:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - status
+        - progress
+        - stage
+        - stageCode
+        - error
+        - executionKind
+        - visualSource
+        - generatedForRequest
+        - containsAiGeneratedAssets
+        - assetProvenance
+        - templateStoryTitle
+        - visualWarning
+        - modelExecution
+        - shots
+        - output
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        stage:
+          type: string
+          minLength: 1
+        stageCode:
+          type: string
+          enum:
+            - queued
+            - preparing
+            - synthesizing_voice
+            - rendering_shot
+            - generating_shot_video
+            - normalizing_shot_video
+            - composing
+            - generating_preview
+            - verifying
+            - succeeded
+            - failed
+        error:
+          type: [string, "null"]
+          minLength: 1
+        executionKind:
+          type: string
+          enum: [template, hybrid]
+        visualSource:
+          const: fixed_project_assets
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          const: true
+        assetProvenance:
+          const: openai_imagegen_project_assets
+        templateStoryTitle:
+          const: 月背最后一单
+        visualWarning:
+          type: string
+          minLength: 1
+        modelExecution:
+          $ref: "#/components/schemas/ModelExecution"
+        shots:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ComicJobShot"
+        output:
+          oneOf:
+            - $ref: "#/components/schemas/ComicJobOutput"
+            - type: "null"
+      oneOf:
+        - properties:
+            executionKind:
+              const: template
+            generatedForRequest:
+              const: false
+            modelExecution:
+              $ref: "#/components/schemas/LocalModelExecution"
+            shots:
+              items:
+                not:
+                  required: [firstFrameUrl]
+            output:
+              properties:
+                executionKind:
+                  const: template
+        - properties:
+            executionKind:
+              const: hybrid
+            generatedForRequest:
+              const: true
+            modelExecution:
+              $ref: "#/components/schemas/HybridModelExecution"
+            shots:
+              items:
+                required: [firstFrameUrl, lastFrameUrl, motionPrompt, videoTask]
+            output:
+              properties:
+                executionKind:
+                  const: hybrid
+    ComicJobShot:
+      type: object
+      additionalProperties: false
+      required: [id, index, title, status, progress, stageCode]
+      properties:
+        id:
+          type: string
+          pattern: '^E01-SH0[1-3]$'
+        index:
+          type: integer
+          minimum: 1
+          maximum: 3
+        title:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        stageCode:
+          type: string
+          enum:
+            - queued
+            - synthesizing_voice
+            - rendering_shot
+            - generating_shot_video
+            - normalizing_shot_video
+            - succeeded
+            - failed
+        firstFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/first-frame\.png$'
+        lastFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/last-frame\.png$'
+        motionPrompt:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        videoTask:
+          $ref: "#/components/schemas/ShotVideoTask"
+      oneOf:
+        - not:
+            required: [firstFrameUrl]
+        - required: [firstFrameUrl, lastFrameUrl, motionPrompt, videoTask]
+    ComicJobOutput:
+      type: object
+      additionalProperties: false
+      required:
+        - previewUrl
+        - videoUrl
+        - manifestUrl
+        - scriptUrl
+        - executionKind
+        - visualSource
+        - generatedForRequest
+        - containsAiGeneratedAssets
+        - assetProvenance
+        - templateStoryTitle
+        - visualWarning
+        - modelExecution
+      properties:
+        previewUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/preview\.gif$'
+        videoUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/video\.mp4$'
+        manifestUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/manifest\.json$'
+        scriptUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/script\.json$'
+        executionKind:
+          type: string
+          enum: [template, hybrid]
+        visualSource:
+          const: fixed_project_assets
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          const: true
+        assetProvenance:
+          const: openai_imagegen_project_assets
+        templateStoryTitle:
+          const: 月背最后一单
+        visualWarning:
+          type: string
+          minLength: 1
+        modelExecution:
+          $ref: "#/components/schemas/ModelExecution"
+        compositionType:
+          const: shot_videos_concat
+        sourceClipCount:
+          const: 3
+      oneOf:
+        - properties:
+            executionKind:
+              const: template
+            generatedForRequest:
+              const: false
+            modelExecution:
+              $ref: "#/components/schemas/LocalModelExecution"
+          not:
+            anyOf:
+              - required: [compositionType]
+              - required: [sourceClipCount]
+        - required: [compositionType, sourceClipCount]
+          properties:
+            executionKind:
+              const: hybrid
+            generatedForRequest:
+              const: true
+            modelExecution:
+              $ref: "#/components/schemas/HybridModelExecution"
+    LocalModelExecution:
+      allOf:
+        - $ref: "#/components/schemas/ModelExecution"
+        - type: object
+          properties:
+            text:
+              const: local
+            image:
+              const: pre_generated
+            video:
+              const: local
+            voice:
+              const: local
+    HybridModelExecution:
+      allOf:
+        - $ref: "#/components/schemas/ModelExecution"
+        - type: object
+          properties:
+            text:
+              const: local
+            image:
+              const: pre_generated
+            video:
+              const: cloud
+            voice:
+              const: local
+    ShotVideoTask:
+      type: object
+      additionalProperties: false
+      required: [status, progress]
+      properties:
+        remoteTaskId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        videoUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/video\.mp4$'
+        error:
+          type: string
+          minLength: 1
+          maxLength: 500
+    ComicScript:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - executionKind
+        - visualSource
+        - generatedForRequest
+        - containsAiGeneratedAssets
+        - assetProvenance
+        - requestedStory
+        - templateStoryTitle
+        - visualWarning
+        - title
+        - shots
+      properties:
+        schemaVersion:
+          type: string
+          enum: ["1.0", "1.1"]
+        executionKind:
+          type: string
+          enum: [template, hybrid]
+        visualSource:
+          const: fixed_project_assets
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          const: true
+        assetProvenance:
+          const: openai_imagegen_project_assets
+        requestedStory:
+          type: string
+          minLength: 4
+          maxLength: 500
+        templateStoryTitle:
+          const: 月背最后一单
+        visualWarning:
+          type: string
+          minLength: 1
+        modelExecution:
+          $ref: "#/components/schemas/HybridModelExecution"
+        title:
+          const: 月背最后一单
+        logline:
+          type: string
+          minLength: 1
+        characters:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ComicCharacter"
+        scenes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ComicScene"
+        shots:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ComicScriptShot"
+      oneOf:
+        - required: [logline, characters, scenes]
+          properties:
+            schemaVersion:
+              const: "1.0"
+            executionKind:
+              const: template
+            generatedForRequest:
+              const: false
+          not:
+            required: [modelExecution]
+        - required: [modelExecution]
+          properties:
+            schemaVersion:
+              const: "1.1"
+            executionKind:
+              const: hybrid
+            generatedForRequest:
+              const: true
+            shots:
+              items:
+                required:
+                  - firstFrameFile
+                  - lastFrameFile
+                  - motionPrompt
+                  - firstFrameUrl
+                  - lastFrameUrl
+                  - firstFrameSha256
+                  - lastFrameSha256
+          not:
+            anyOf:
+              - required: [logline]
+              - required: [characters]
+              - required: [scenes]
+    ComicCharacter:
+      type: object
+      additionalProperties: false
+      required: [id, name, appearanceLock]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        appearanceLock:
+          type: string
+          minLength: 1
+    ComicScene:
+      type: object
+      additionalProperties: false
+      required: [id, name, environmentLock]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        environmentLock:
+          type: string
+          minLength: 1
+    ComicScriptShot:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - index
+        - title
+        - narration
+        - subtitle
+        - assetFile
+        - motion
+        - durationSeconds
+      properties:
+        id:
+          type: string
+          pattern: '^E01-SH0[1-3]$'
+        index:
+          type: integer
+          minimum: 1
+          maximum: 3
+        title:
+          type: string
+          minLength: 1
+        narration:
+          type: string
+          minLength: 1
+        subtitle:
+          type: string
+          minLength: 1
+        assetFile:
+          type: string
+          enum: [moon-courier-shot-01.png, moon-courier-shot-02.png, moon-courier-shot-03.png]
+        motion:
+          type: string
+          enum: [slow_zoom_in, pan_left_to_right, slow_zoom_out]
+        durationSeconds:
+          const: 3
+        firstFrameFile:
+          type: string
+          enum:
+            - moon-courier-shot-01.png
+            - moon-courier-shot-02.png
+            - moon-courier-shot-03.png
+        lastFrameFile:
+          type: string
+          enum:
+            - moon-courier-shot-01-end.png
+            - moon-courier-shot-02-end.png
+            - moon-courier-shot-03-end.png
+        motionPrompt:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        firstFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/first-frame\.png$'
+        lastFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/last-frame\.png$'
+        firstFrameSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+        lastFrameSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+      oneOf:
+        - not:
+            required: [firstFrameFile]
+        - required:
+            - firstFrameFile
+            - lastFrameFile
+            - motionPrompt
+            - firstFrameUrl
+            - lastFrameUrl
+            - firstFrameSha256
+            - lastFrameSha256
+    ComicManifest:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - jobId
+        - executionKind
+        - visualSource
+        - generatedForRequest
+        - containsAiGeneratedAssets
+        - assetProvenance
+        - requestedStory
+        - templateStoryTitle
+        - visualWarning
+        - aspectRatio
+        - width
+        - height
+        - shotCount
+        - shotDurationSeconds
+        - durationSeconds
+        - models
+        - shots
+        - output
+      properties:
+        schemaVersion:
+          type: string
+          enum: ["1.0", "1.1"]
+        jobId:
+          type: string
+          format: uuid
+        executionKind:
+          type: string
+          enum: [template, hybrid]
+        visualSource:
+          const: fixed_project_assets
+        generatedForRequest:
+          type: boolean
+        containsAiGeneratedAssets:
+          const: true
+        assetProvenance:
+          const: openai_imagegen_project_assets
+        requestedStory:
+          type: string
+          minLength: 4
+          maxLength: 500
+        templateStoryTitle:
+          const: 月背最后一单
+        visualWarning:
+          type: string
+          minLength: 1
+        modelExecution:
+          $ref: "#/components/schemas/HybridModelExecution"
+        compositionType:
+          const: shot_videos_concat
+        sourceClipCount:
+          const: 3
+        aspectRatio:
+          const: "9:16"
+        width:
+          const: 720
+        height:
+          const: 1280
+        shotCount:
+          const: 3
+        shotDurationSeconds:
+          const: 3
+        durationSeconds:
+          const: 9
+        models:
+          $ref: "#/components/schemas/ComicModelSelection"
+        shots:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ComicManifestShot"
+        output:
+          $ref: "#/components/schemas/ComicArtifactLinks"
+      oneOf:
+        - properties:
+            schemaVersion:
+              const: "1.0"
+            executionKind:
+              const: template
+            generatedForRequest:
+              const: false
+            models:
+              properties:
+                videoModelId:
+                  const: local_ffmpeg_motion_comic
+            shots:
+              items:
+                required: [sourceAsset, sourceAssetSha256]
+            output:
+              not:
+                anyOf:
+                  - required: [compositionType]
+                  - required: [sourceClipCount]
+          not:
+            anyOf:
+              - required: [modelExecution]
+              - required: [compositionType]
+              - required: [sourceClipCount]
+        - required: [modelExecution, compositionType, sourceClipCount]
+          properties:
+            schemaVersion:
+              const: "1.1"
+            executionKind:
+              const: hybrid
+            generatedForRequest:
+              const: true
+            models:
+              properties:
+                videoModelId:
+                  const: wan2.7-i2v-2026-04-25
+            shots:
+              items:
+                required:
+                  - firstFrameFile
+                  - lastFrameFile
+                  - motionPrompt
+                  - firstFrameUrl
+                  - lastFrameUrl
+                  - firstFrameSha256
+                  - lastFrameSha256
+                  - videoTask
+                  - providerVideoSha256
+                  - firstFrameAsset
+                  - lastFrameAsset
+            output:
+              required: [compositionType, sourceClipCount]
+    ComicModelSelection:
+      type: object
+      additionalProperties: false
+      required: [textModelId, imageModelId, videoModelId, voiceModelId]
+      properties:
+        textModelId:
+          const: local_storyboard_template
+        imageModelId:
+          const: fixed_moon_courier_assets
+        videoModelId:
+          type: string
+          enum: [local_ffmpeg_motion_comic, wan2.7-i2v-2026-04-25]
+        voiceModelId:
+          const: windows_sapi_huihui
+    ComicManifestShot:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - index
+        - title
+        - narration
+        - subtitle
+        - assetFile
+        - motion
+        - durationSeconds
+        - voiceSourceDurationSeconds
+        - voiceTempo
+        - status
+        - progress
+        - visualSource
+      properties:
+        id:
+          type: string
+          pattern: '^E01-SH0[1-3]$'
+        index:
+          type: integer
+          minimum: 1
+          maximum: 3
+        title:
+          type: string
+          minLength: 1
+        narration:
+          type: string
+          minLength: 1
+        subtitle:
+          type: string
+          minLength: 1
+        assetFile:
+          type: string
+          enum: [moon-courier-shot-01.png, moon-courier-shot-02.png, moon-courier-shot-03.png]
+        motion:
+          type: string
+          enum: [slow_zoom_in, pan_left_to_right, slow_zoom_out]
+        durationSeconds:
+          const: 3
+        voiceSourceDurationSeconds:
+          type: number
+          exclusiveMinimum: 0
+        voiceTempo:
+          type: number
+          exclusiveMinimum: 0
+        status:
+          const: succeeded
+        progress:
+          const: 100
+        visualSource:
+          const: fixed_project_assets
+        sourceAsset:
+          type: string
+          pattern: '^assets/showcase/motion_comic/moon-courier-shot-0[1-3]\.png$'
+        sourceAssetSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+        firstFrameFile:
+          type: string
+          enum:
+            - moon-courier-shot-01.png
+            - moon-courier-shot-02.png
+            - moon-courier-shot-03.png
+        lastFrameFile:
+          type: string
+          enum:
+            - moon-courier-shot-01-end.png
+            - moon-courier-shot-02-end.png
+            - moon-courier-shot-03-end.png
+        motionPrompt:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        firstFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/first-frame\.png$'
+        lastFrameUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/shots/E01-SH0[1-3]/last-frame\.png$'
+        firstFrameSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+        lastFrameSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+        videoTask:
+          $ref: "#/components/schemas/ShotVideoTask"
+        providerVideoSha256:
+          type: string
+          pattern: '^[0-9A-Fa-f]{64}$'
+        firstFrameAsset:
+          type: string
+          pattern: '^assets/showcase/motion_comic/moon-courier-shot-0[1-3]\.png$'
+        lastFrameAsset:
+          type: string
+          pattern: '^assets/showcase/motion_comic/moon-courier-shot-0[1-3]-end\.png$'
+      oneOf:
+        - required: [sourceAsset, sourceAssetSha256]
+          not:
+            required: [firstFrameFile]
+        - required:
+            - firstFrameFile
+            - lastFrameFile
+            - motionPrompt
+            - firstFrameUrl
+            - lastFrameUrl
+            - firstFrameSha256
+            - lastFrameSha256
+            - videoTask
+            - providerVideoSha256
+            - firstFrameAsset
+            - lastFrameAsset
+          not:
+            required: [sourceAsset]
+    ComicArtifactLinks:
+      type: object
+      additionalProperties: false
+      required: [previewUrl, videoUrl, manifestUrl, scriptUrl]
+      properties:
+        previewUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/preview\.gif$'
+        videoUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/video\.mp4$'
+        manifestUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/manifest\.json$'
+        scriptUrl:
+          type: string
+          pattern: '^/v1/comic-jobs/[0-9a-f-]{36}/script\.json$'
+        compositionType:
+          const: shot_videos_concat
+        sourceClipCount:
+          const: 3
+      oneOf:
+        - not:
+            anyOf:
+              - required: [compositionType]
+              - required: [sourceClipCount]
+        - required: [compositionType, sourceClipCount]
+    CreateLegacyVideoJob:
+      type: object
+      additionalProperties: false
+      required: [prompt, textModelId, videoModelId, aspectRatio, durationSeconds]
+      properties:
+        prompt:
+          type: string
+          minLength: 4
+          maxLength: 108
+        textModelId:
+          const: manual
+        videoModelId:
+          const: local_ffmpeg_slides
+        aspectRatio:
+          const: "9:16"
+        durationSeconds:
+          type: integer
+          minimum: 3
+          maximum: 8
+    LegacyVideoJob:
+      type: object
+      additionalProperties: false
+      required: [id, status, progress, stage, error, output]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        stage:
+          type: string
+          minLength: 1
+        error:
+          type: [string, "null"]
+          minLength: 1
+        output:
+          oneOf:
+            - $ref: "#/components/schemas/LegacyVideoOutput"
+            - type: "null"
+    LegacyVideoOutput:
+      type: object
+      additionalProperties: false
+      required: [previewUrl, videoUrl]
+      properties:
+        previewUrl:
+          type: string
+          pattern: '^/v1/video-jobs/[0-9a-f-]{36}/preview\.gif$'
+        videoUrl:
+          type: string
+          pattern: '^/v1/video-jobs/[0-9a-f-]{36}/video\.mp4$'
+    Error:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1

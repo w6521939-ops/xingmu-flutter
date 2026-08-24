@@ -727,42 +727,54 @@ class _CreationToolGrid extends StatelessWidget {
       Color(0xFFC55CFF),
     ),
     (
-      StudioDestination.shots,
+      StudioDestination.models,
       Icons.movie_creation_outlined,
       '视频生成',
-      '按镜头提交图生视频任务',
+      '模型选择与真实 MP4',
       Color(0xFF4C9FFF),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 600;
-        final columns = compact || constraints.maxWidth >= 900 ? 4 : 2;
-        final gap = compact ? 8.0 : 12.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: _tools
-              .map(
-                (tool) => SizedBox(
-                  width: width,
-                  child: _CreationToolCard(
-                    compact: compact,
-                    icon: tool.$2,
-                    title: tool.$3,
-                    description: tool.$4,
-                    color: tool.$5,
-                    onTap: () => onNavigate(tool.$1),
-                  ),
-                ),
-              )
-              .toList(growable: false),
-        );
-      },
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final responsiveWidth = viewportWidth.clamp(0.0, 1180.0).toDouble();
+    final horizontalPadding = viewportWidth < 600 ? 16.0 : 28.0;
+    final availableWidth = (responsiveWidth - horizontalPadding * 2)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final compact = availableWidth < 600;
+    final columns = availableWidth < 160
+        ? 1
+        : compact || availableWidth >= 900
+        ? 4
+        : 2;
+    final gap = compact ? 8.0 : 12.0;
+    final width = ((availableWidth - gap * (columns - 1)) / columns)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+
+    // Keep this grid independent from a layout callback. On a slow first
+    // Android frame the CPF engine can otherwise reschedule LayoutBuilder
+    // after its render object is already clean and show a debug error panel.
+    return Wrap(
+      spacing: gap,
+      runSpacing: gap,
+      children: _tools
+          .map(
+            (tool) => SizedBox(
+              width: width,
+              child: _CreationToolCard(
+                compact: compact,
+                icon: tool.$2,
+                title: tool.$3,
+                description: tool.$4,
+                color: tool.$5,
+                onTap: () => onNavigate(tool.$1),
+              ),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 }
