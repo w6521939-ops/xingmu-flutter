@@ -1,67 +1,64 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+**/generated_plugin_registrant.dart
 
-# IntelliJ related
+# IDE
+.idea/
+.vscode/
 *.iml
 *.ipr
 *.iws
-.idea/
+.project
+.classpath
+.settings/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# OS
+.DS_Store
+Thumbs.db
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+# HarmonyOS (OHOS) build artifacts
+ohos/.hvigor/
+ohos/oh_modules/
+ohos/build/
+ohos/entry/build/
+**/.preview/
+**/.test/
 
-# Symbolication related
-app.*.symbols
+# Python (services)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
 
-# Obfuscation related
-app.*.map.json
+# Generated output / storage (contains user-generated video/audio content)
+services/basic_video_server/storage/
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Local SDK paths, credentials, signing material and provider secrets
-/android/local.properties
-/android/key.properties
-/ohos/local.properties
-**/*.keystore
-**/*.jks
-**/*.p12
-**/*.pfx
-**/*.pem
-**/*.key
+# Sensitive configuration
 .env
 .env.*
-!.env.example
-key.txt
-secrets.*
+*.key
+*.pem
+*.pfx
+*.p12
+secrets.json
+credentials.json
 
-# Local generation data and downloaded media are never source artifacts
-/outputs/
-/.manju-studio/
-/backend/data/
-/services/basic_video_server/storage/
+# Logs
+*.log
+flutter_*.log
+emulator-*.log
+
+# Coverage
+coverage/
+lcov.info
+
+# Generated images / screenshots (not part of source)
+*.err.log
