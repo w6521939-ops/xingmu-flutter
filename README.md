@@ -9,7 +9,7 @@
 ---
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="280" alt="星幕 App 首页" />
+  <img src="docs/screenshots/home.png" width="200" alt="星幕 App 首页" />
 </p>
 
 <div align="center">
@@ -60,25 +60,14 @@
 - **最近项目** — 漫剧列表 + 状态标签 + 播放按钮
 - **底部导航** — 首页 / 创作 / 工作台 / 任务 / 我的
 
-## 漫剧素材展示
+## 界面展示
 
-以下为 App 内 "月背最后一单" 项目的 AI 生成概念插画：
+App 内 "月背最后一单" 项目的界面与 AI 生成素材：
 
-<p align="center">
-  <img src="docs/screenshots/creation.png" width="200" alt="月球表面探索" />
-  <img src="docs/screenshots/shot-workbench.png" width="200" alt="宇航员与设备箱" />
-  <img src="docs/screenshots/script-review.png" width="200" alt="太空站舷窗" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/result.png" width="200" alt="全息投影" />
-  <img src="docs/screenshots/video-lab.png" width="200" alt="月球基地" />
-  <img src="docs/screenshots/task-center.png" width="200" alt="舱内阅读" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/settings.png" width="200" alt="概念设定" />
-</p>
+| | | |
+|:---:|:---:|:---:|
+| ![主题成剧](docs/screenshots/creation.png) | ![剧本审阅](docs/screenshots/script-review.png) | ![分镜工作台](docs/screenshots/shot-workbench.png) |
+| ![成片预览](docs/screenshots/result.png) | ![视频实验室](docs/screenshots/video-lab.png) | ![任务中心](docs/screenshots/task-center.png) |
 
 ## 架构
 
