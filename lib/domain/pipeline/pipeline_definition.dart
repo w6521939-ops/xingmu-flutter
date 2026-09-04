@@ -173,4 +173,132 @@ class PipelineDefinition {
       ),
     ],
   );
+
+  static PipelineDefinition talkingHead = PipelineDefinition(
+    id: 'talking-head',
+    name: '口播视频',
+    description: '单人出镜口播视频，生成文案 + 配音 + 合成',
+    stages: [
+      const StageDefinition(
+        stage: PipelineStage.ingestion,
+        dependsOn: [],
+        requiresApproval: true,
+        approvalLabel: '确认话题输入',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.script,
+        dependsOn: [PipelineStage.ingestion],
+        requiresApproval: true,
+        approvalLabel: '确认口播文案',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.shots,
+        dependsOn: [PipelineStage.script],
+        canParallel: true,
+      ),
+      const StageDefinition(
+        stage: PipelineStage.voice,
+        dependsOn: [PipelineStage.script],
+        canParallel: true,
+      ),
+      const StageDefinition(
+        stage: PipelineStage.compose,
+        dependsOn: [PipelineStage.shots, PipelineStage.voice],
+        requiresApproval: true,
+        approvalLabel: '确认口播合成',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.publish,
+        dependsOn: [PipelineStage.compose],
+      ),
+    ],
+  );
+
+  static PipelineDefinition screenRecording = PipelineDefinition(
+    id: 'screen-recording',
+    name: '屏幕录制演示',
+    description: '录屏 + 配音生成教程视频，含操作脚本与语音旁白',
+    stages: [
+      const StageDefinition(
+        stage: PipelineStage.ingestion,
+        dependsOn: [],
+        requiresApproval: true,
+        approvalLabel: '确认录屏素材',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.script,
+        dependsOn: [PipelineStage.ingestion],
+        requiresApproval: true,
+        approvalLabel: '确认旁白脚本',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.shots,
+        dependsOn: [PipelineStage.script],
+        canParallel: true,
+      ),
+      const StageDefinition(
+        stage: PipelineStage.voice,
+        dependsOn: [PipelineStage.script],
+        canParallel: true,
+      ),
+      const StageDefinition(
+        stage: PipelineStage.compose,
+        dependsOn: [PipelineStage.shots, PipelineStage.voice],
+        requiresApproval: true,
+        approvalLabel: '确认演示合成',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.publish,
+        dependsOn: [PipelineStage.compose],
+      ),
+    ],
+  );
+
+  static PipelineDefinition podcastRepurpose = PipelineDefinition(
+    id: 'podcast-repurpose',
+    name: '播客再利用',
+    description: '将播客音频转换为带字幕的视频，自动生成可视化内容',
+    stages: [
+      const StageDefinition(
+        stage: PipelineStage.ingestion,
+        dependsOn: [],
+        requiresApproval: true,
+        approvalLabel: '确认播客音频',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.script,
+        dependsOn: [PipelineStage.ingestion],
+        requiresApproval: true,
+        approvalLabel: '确认转写文本',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.voice,
+        dependsOn: [PipelineStage.script],
+      ),
+      const StageDefinition(
+        stage: PipelineStage.compose,
+        dependsOn: [PipelineStage.voice],
+        requiresApproval: true,
+        approvalLabel: '确认视频合成',
+      ),
+      const StageDefinition(
+        stage: PipelineStage.publish,
+        dependsOn: [PipelineStage.compose],
+      ),
+    ],
+  );
+
+  static List<PipelineDefinition> get all => [
+    manjuDrama,
+    talkingHead,
+    screenRecording,
+    podcastRepurpose,
+  ];
+
+  static PipelineDefinition? findById(String id) {
+    for (final def in all) {
+      if (def.id == id) return def;
+    }
+    return null;
+  }
 }

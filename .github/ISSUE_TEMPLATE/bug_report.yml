@@ -1,0 +1,67 @@
+name: Bug 报告
+description: 报告一个 Bug 帮助我们改进
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug 描述
+      description: 清楚地描述这个 Bug 是什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 如何复现这个 Bug
+      placeholder: |
+        1. 打开 App
+        2. 进入「...」
+        3. 点击「...」
+        4. 看到 Bug
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      description: 你期望发生什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Android
+        - HarmonyOS
+        - Web
+        - 桌面
+    validations:
+      required: true
+
+  - type: input
+    id: flutter-version
+    attributes:
+      label: Flutter 版本
+      placeholder: "flutter --version"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志/控制台输出
+      render: shell

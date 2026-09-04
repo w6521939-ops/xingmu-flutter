@@ -181,6 +181,8 @@ lib/
 │   ├── voice_sync/                   # 字幕卡点
 │   │   ├── domain/                    # 时间轴 + SRT/ASS 导出
 │   │   └── application/               # 同步控制器
+│   ├── pipeline_selector/             # 管线选择器
+│   │   └── presentation/             # 管线选择界面
 │   ├── video_lab/                    # 视频实验室
 │   ├── result/                       # 成片预览
 │   ├── settings/                     # 设置
@@ -239,6 +241,7 @@ lib/
 | **阶段一** | v0.5.0 | 文件导入 + 多 Provider 抽象 + 管线状态机 |
 | **阶段二** | v1.0.0 | 角色锁脸 + 运镜规划 + 字幕卡点 + Multi-Agent 架构 |
 | **阶段三** | v1.5.0 | 自定义 Agent 扩展 + 多轨混音 GPU 渲染 + Keyring 加密存储 |
+| **阶段四** | v2.0.0 | 开源工程化 + 新管线扩展（口播/录屏/播客）+ 测试增强 |
 
 ## 许可证
 
