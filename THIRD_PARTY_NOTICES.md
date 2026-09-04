@@ -1,4 +1,4 @@
-# Third-Party Notices
+﻿# Third-Party Notices
 
 This repository is an independent Flutter client implementation. Unless a source file says otherwise, no source code, model weight, generated output, API credential, or media asset from the reference projects below is vendored in this repository.
 
@@ -16,7 +16,7 @@ The OpenHarmony build uses the CPF-Flutter fork and branch documented in the REA
 - Source: <https://gitcode.com/CPF-Flutter/flutter_flutter>
 - Usage: OpenHarmony platform support and build tooling
 
-The fork's upstream license and bundled notices remain authoritative. No Flutter engine binary is relicensed by this project's Apache-2.0 license.
+The fork's upstream license and bundled notices remain authoritative. No Flutter engine binary is relicensed by this project's MIT License.
 
 ### Flutter video_player and OpenHarmony adaptation
 
@@ -29,7 +29,7 @@ The fork's upstream license and bundled notices remain authoritative. No Flutter
 - OpenHarmony implementation revision: `97e9265ae2ab44c913d5d943ad68bec0c07a040e`
 - Usage: embedded playback of the same-origin final MP4 on Android and OpenHarmony
 
-The package source and OpenHarmony adaptation remain subject to their upstream BSD-3-Clause license and notices. This repository pins the CPF revision because the OpenHarmony platform implementation is not provided by the default pub.dev package alone. The project does not relicense those sources under Apache-2.0 and does not bundle a provider video, codec binary or generated clip as part of this dependency notice.
+The package source and OpenHarmony adaptation remain subject to their upstream BSD-3-Clause license and notices. This repository pins the CPF revision because the OpenHarmony platform implementation is not provided by the default pub.dev package alone. The project does not relicense those sources under MIT and does not bundle a provider video, codec binary or generated clip as part of this dependency notice.
 
 ### flutter_lints
 
@@ -50,7 +50,7 @@ The package source and OpenHarmony adaptation remain subject to their upstream B
 - Usage: optional local-development TTS for the three-shot motion-comic template
 - Distribution boundary: this repository contains no Windows speech binary or voice model
 
-The local TTS adapter is a Windows host capability, not a Flutter, Android or OpenHarmony runtime dependency. Availability depends on voices installed on the development machine. A distributor must not copy Microsoft voice data into this repository or imply that the voices are licensed under Apache-2.0.
+The local TTS adapter is a Windows host capability, not a Flutter, Android or OpenHarmony runtime dependency. Availability depends on voices installed on the development machine. A distributor must not copy Microsoft voice data into this repository or imply that the voices are licensed under MIT.
 
 ## External services and optional backends
 
@@ -97,7 +97,7 @@ The following projects were considered for workflow or interface ideas. No code 
 - Upstream license: GPL-3.0 at the time this notice was written
 - Reference boundary: optional external workflow-service interface only
 
-If a future deployment connects to ComfyUI, it must remain an independently deployed service unless a complete license review approves a different integration. This project's Apache-2.0 license does not override ComfyUI's GPL terms.
+If a future deployment connects to ComfyUI, it must remain an independently deployed service unless a complete license review approves a different integration. this project's MIT License does not override ComfyUI's GPL terms.
 
 ## Assets and generated notices
 
@@ -122,3 +122,4 @@ Only assets owned by the project or explicitly licensed for redistribution may b
 2. run Flutter's license collection for actual package dependencies;
 3. update this file when source code or assets are copied, modified or newly bundled; and
 4. preserve all upstream copyright, license and NOTICE files required by those dependencies.
+

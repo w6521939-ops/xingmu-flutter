@@ -51,6 +51,17 @@ services/basic_video_server/storage/
 secrets.json
 credentials.json
 
+# Keyring / encrypted vault
+*.vault
+*.keyring
+*_vault.json
+*_keyring.json
+.keyring/
+master_key_*
+salt_*
+*.enc
+*.encrypted
+
 # Logs
 *.log
 flutter_*.log
